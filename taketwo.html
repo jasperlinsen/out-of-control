@@ -1,0 +1,792 @@
+<!doctype html>
+<html>
+<head>
+
+</head>
+<body>
+
+<main>
+    <header>
+        <h1>Out of Control Lander</h1>
+        <button onclick="start()">Play</button>
+        <p><code>Scrollwheel</code> Rotate your out-of-control lander! <code>Click and Hold</code> to speed up!</p>
+        <p><small>A Game by <a href="https://somethinghere.net">Something Here</a> for GMTK GameJam 2020</small></p>
+    </header>
+    <section id="game"></section>
+    <aside>
+        <span id="points-counter">0</span>
+        <span id="progress-visualiser">0</span>
+    </aside>
+</main>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Vampiro+One&family=Varela+Round&display=swap');
+
+:root {
+    --font-body: 'Varela Round', "Helvetica Neue", Arial, sans-serif;
+    --font-title: 'Vampiro One', 'Impact', cursive;
+    --accent: gold;
+}
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: black;
+    font-family: var(--font-body);
+}
+main {
+    max-width: 100%;
+    max-height: 100%;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    background: #111;
+}
+header {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    background: rgba(0,0,0,.85);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity .4s;
+}
+aside {
+    width: 100%;
+    height: 40px;
+    background: #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1em;
+    box-sizing: border-box;
+    color: white;
+}
+canvas {
+    position: relative;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+a {
+    color: inherit;
+    text-decoration: none;
+}
+h1 {
+    font-family: var(--font-title);
+    font-size: 5vw;
+    transform: skewY(-3deg) scaleX(.85);
+    text-shadow: -2px 2px 0 var(--accent);
+    margin: 1em 0;
+}
+small {
+    font-size: .75em;
+    opacity: .5;
+}
+button {
+    background: var(--accent);
+    border-radius: 60px;
+    border: none;
+    font-size: 1.25em;
+    padding: .5em 2em;
+    cursor: pointer;
+}
+p {
+    max-width: 450px;
+    text-align: center;
+    line-height: 1.5em;
+}
+code {
+    display: inline-block;
+    background: rgba(255,255,255,.2);
+    padding: 3px 6px;
+    border: 1px solid rgba(255,255,255,.2);
+    line-height: 1em;
+}
+.playing header {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#progress-visualiser {
+    width: 100%;
+    height: 20px;
+    background: url('data:image/svg+xml;charset=utf8,<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"><rect width="1" height="1" x="0" y="0" fill="white" stroke="none" /></svg>') no-repeat 0 0 / calc(var(--progress, .5) * 100%) 100% rgba(255,255,255,.2);
+    margin-left: 20px;
+}
+</style>
+
+<script>
+
+class CanvasTransform {
+
+    constructor( x = 0, y = 0, rotation = 0, scale = 1 ){
+
+        this.x = x;
+        this.y = y;
+        this.rotation = rotation;
+        this.scale = scale;
+
+    }
+
+}
+class CanvasObject extends CanvasTransform {
+
+    constructor( width = 100, height = 100, x, y, rotation, scale ){
+
+        super( x, y, rotation, scale );
+
+        this.canvas = document.createElement( 'canvas' );
+        this.context = this.canvas.getContext( '2d' );
+        this.width = this.canvas.width = width;
+        this.height = this.canvas.height = height;
+        this.zIndex = 0;
+        this.debug = null;
+        this.visible = true;
+        this.centerOffset = { x: 0, y: 0 };
+
+    }
+
+    overlaps( otherObject ){
+
+    }
+
+}
+class CanvasScene extends CanvasObject {
+
+    constructor( width = innerWidth, height = innerHeight ){
+
+        super( width, height );
+
+        this.children = [];
+        this.clearOnRender = true;
+
+        return this;
+
+    }
+
+    render(){
+
+        if( this.clearOnRender ){
+
+            this.canvas.width = this.canvas.width;
+
+        }
+
+        const { context } = this;
+
+        this.children.sort((a,b) => a.zIndex - b.zIndex).filter(v => v.visible).forEach(child => {
+            
+            if( child instanceof CanvasScene ){
+
+                child.render();
+
+            }
+
+            context.save();
+            context.translate( child.x, child.y );
+            context.scale( child.scale, child.scale );
+            context.rotate( child.rotation );
+            context.drawImage( child.canvas, child.centerOffset.x, child.centerOffset.y, child.width, child.height );
+
+            if( child.debug ){
+
+                context.strokeStyle = child.debug;
+                context.strokeRect( child.centerOffset.x, child.centerOffset.y, child.width, child.height );
+
+            }
+
+            context.restore();
+
+        });
+
+        return this;
+
+    }
+
+}
+class CanvasSprite extends CanvasObject {
+
+    constructor( width = 100, height = 100, x, y, rotation, scale ){
+
+        super( width, height, x, y, rotation, scale );
+
+    }
+
+    loadPatternFromURL( url, repeat = 'repeat' ){
+
+        const image = new Image;
+
+        image.addEventListener( 'load', e => {
+
+            if( repeat === 'repeat-x' ) this.height = this.canvas.height = image.naturalHeight;
+            if( repeat === 'repeat-y' ) this.width = this.canvas.width = image.naturalWidth;
+
+            this.context.save();
+            this.context.fillStyle = this.context.createPattern( image, repeat );
+            this.context.fillRect( 0, 0, this.width, this.height );
+            this.context.restore();
+
+        });
+        image.src = url;
+
+        return this;
+
+    }
+    loadImageFromURL( url, computeOffset = false ){
+
+        const image = new Image;
+
+        image.addEventListener( 'load', e => {
+
+            this.width = this.canvas.width = image.naturalWidth || image.width;
+            this.height = this.canvas.height = image.naturalHeight || image.height;
+            this.context.drawImage( image, 0, 0, this.width, this.height );
+
+            if( computeOffset ){
+
+                this.centerOffset.x = -this.width / 2;
+                this.centerOffset.y = -this.height / 2;
+
+            }
+
+        });
+        image.src = url;
+
+        return this;
+
+    }
+    loadImageFromColor( color ){
+
+        this.context.save();
+        this.context.fillStyle = color;
+        this.context.fillRect( 0, 0, this.canvas.width, this.canvas.height );
+        this.context.restore();
+
+        return this;
+
+    }
+
+}
+class CanvasPlayer extends CanvasSprite {
+
+    constructor( x, y, rotation, scale ){
+
+        super( 100, 100, x, y, rotation, scale );
+
+        this.controllable = true;
+        this.angular = 0;
+        this.loadImageFromURL( 'images/cruddyship.png', true );
+
+    }
+
+}
+
+class CanvasResetLevel extends CanvasSprite {
+
+    onOverlap(){
+
+        reset();
+
+    }
+
+}
+class CanvasPickup extends CanvasSprite {
+
+    constructor( color, x, y, respawnTime ){
+
+        super( 30, 30, x, y );
+
+        this.respawnTime = respawnTime;
+        this.loadImageFromColor( color );
+
+    }
+
+    onCollect( overlapTarget ){
+
+        // require implementation of subclasses
+
+    }
+    onOverlap( overlapTarget ){
+
+        if( this.visible ){
+
+            this.visible = false;
+            this.onCollect( overlapTarget );
+
+            if( this.respawnTime ) setTimeout(() => {
+
+                this.visible = true;
+
+            }, this.respawnTime)
+
+        }
+
+    }
+
+}
+class CanvasResetRotationPickup extends CanvasPickup {
+
+    onCollect( overlapTarget ){
+
+        if( this.visible ){
+
+            this.visible = false;
+
+            overlapTarget.scale = 1;
+
+            setTimeout(() => this.visible = false, 2000)
+
+        }
+
+    }
+    
+}
+class CanvasResetSpeedPickup extends CanvasPickup {
+
+    onCollect( overlapTarget ){
+
+        if( this.vivislbe)
+        speed = speedDefault;
+
+    }
+
+}
+class CanvasPointsPickup extends CanvasPickup {
+
+    onCollect( overlapTarget ){
+
+        this.visible = false;
+        
+        points += 100;
+
+    }
+
+}
+class CanvasLevelFloor extends CanvasSprite {
+
+    onOverlap( overlapTarget ){
+        
+        overlapTarget.y = this.y - overlapTarget.height * overlapTarget.scale - overlapTarget.centerOffset.y;
+        speed = clamp( speed - .01, 0, Infinity );
+
+    }
+
+}
+class CanvasRandomisedLevel extends CanvasScene {
+
+    constructor( width, height ){
+
+        super( width, height );
+
+        this.construct();
+
+    }
+
+    construct(){
+
+        const objects = [];
+
+        // top and bottom respectively
+        this.children.push(
+            new CanvasBounceOffWall( this.width, 50 ).loadPatternFromURL( './images/walltop.png', 'repeat-x' ),
+            new CanvasLevelFloor( this.width, 50, 0, this.height -  50 ).loadPatternFromURL( './images/wallbottom.png', 'repeat-x' ),
+            new CanvasEndLevelZone( scene.width, this.height, this.width - scene.width, 0 ).loadImageFromColor( 'rgba(255,255,255,0)' ),
+        );
+
+        for( let x = 500; x < this.width - scene.width * 2; ){
+            
+            let t = Math.random() < .5;
+            let h = Math.random() * 250 + 50;
+            let y = t ? this.height - h : 0;
+            let w = Math.random() * 50 + 50;
+
+            x += Math.random() * 400 + 200;
+
+            this.children.push( new CanvasBounceOffWall( w, h, x, y ).loadImageFromColor( 'brown' ) );
+
+            y = (this.height - h) * .5;
+            y = t ? y : y + h;
+
+            this.children.push( new CanvasPointsPickup( 'green', x + w / 2, y ) );
+
+        }
+    
+    }
+
+}
+class CanvasBounceOffWall extends CanvasSprite {
+
+    constructor(){
+
+        super( ...arguments );
+
+        this.lastHit = 0;
+
+    }
+
+    onOverlap( overlapTarget ){
+
+        const now = Date.now();
+
+        if( now - this.lastHit > 200 ){
+
+            if( overlapTarget.y > this.y ){
+
+                overlapTarget.rotation += Math.PI / 2;
+                overlapTarget.angular = Math.PI;
+
+            } else {
+
+                overlapTarget.rotation -= Math.PI / 2;
+                overlapTarget.angular = -Math.PI * 4;
+
+            }
+            
+            this.lastHit = now;
+
+        }
+
+    }
+
+}
+class CanvasEndLevelZone extends CanvasSprite {
+
+    onOverlap( overlapTarget ){
+
+        controllable = false;
+        playing = false;
+
+        const since = Date.now();
+        const from = { x: player.x, y: player.y, rotation: player.rotation };
+        const to = { x: scene.width / 2, y: scene.height - player.height, rotation: -Math.PI / 2 }
+
+        function toEnd(){
+
+            const progress = clamp( (Date.now() - since) / 2000, 0, 1 );
+            const p = progress * progress;
+
+            if( progress === 1 ){
+
+                Object.assign( player, to );
+                controllable = true;
+                
+                setTimeout( reset, 1000 );
+
+            } else {
+
+                Object.assign( player, {
+                    x: (to.x - from.x) * progress + from.x,
+                    y: (to.y - from.y) * p + from.y,
+                    rotation: (to.rotation - from.rotation) * p + from.rotation,
+                });
+                window.requestAnimationFrame( toEnd );
+
+            }
+
+        }
+
+        toEnd();
+
+    }
+
+}
+
+function getBoundingBox( ofObject ){
+
+    return {
+        left: ofObject.x + ofObject.centerOffset.x,
+        right: ofObject.x + ofObject.centerOffset.x + ofObject.width * ofObject.scale,
+        top: ofObject.y + ofObject.centerOffset.y,
+        bottom: ofObject.y + ofObject.centerOffset.y + ofObject.height * ofObject.scale
+    };
+
+}
+function clamp( value, min, max ){
+    
+    return value < min ? min : (value > max ? max : value);
+    
+}
+function canvasTouchEventToOffset( touchEvent, touch = touchEvent ){
+
+    const bb = touch.target.getBoundingClientRect();
+
+    return {
+        x: (touch.clientX - bb.left) / bb.width * touchEvent.target.width,
+        y: (touch.clientY - bb.top) / bb.height * touchEvent.target.height
+    }
+
+}
+function canvasMouseEventToOffset( mouseEvent ){
+
+    return {
+        x: mouseEvent.offsetX / mouseEvent.target.clientWidth * mouseEvent.target.width,
+        y: mouseEvent.offsetY / mouseEvent.target.clientHeight * mouseEvent.target.height
+    }
+
+}
+function updateLevel(){
+
+    const direction = Math.sign( Math.cos( player.rotation ) );
+
+    level.x = clamp( level.x - direction * speed, -level.width + scene.width, 0 );
+
+    // if( level.x > 0 ){
+
+    //     level.x = -level.width + scene.width;
+
+    // }
+
+    // if( level.x < -level.width + scene.width ){
+
+    //     resetLevel();
+
+    // }
+
+}
+function detectOverlaps( withObject ){
+
+    const withObjectBox = getBoundingBox( withObject );
+
+    return level.children.filter(v => v.onOverlap).filter(child => {
+
+        const box = getBoundingBox( child );
+        
+        box.left += level.x;
+        box.right += level.x;
+        box.top += level.y;
+        box.bottom += level.y;
+
+        return !(  withObjectBox.left   > box.right
+                || withObjectBox.top    > box.bottom
+                || withObjectBox.bottom < box.top
+                || withObjectBox.right  < box.left)
+
+    }).forEach(v => v.onOverlap( withObject ))
+
+}
+function reducePlayerAngular( amount ){
+
+    if( player.angular != 0 ){
+
+        const abs = Math.abs(player.angular) - amount;
+
+        if( abs < 0 ) player.angular = 0;
+
+        player.angular = abs * Math.sign( player.angular );
+
+    }
+
+}
+function updatePlayer(){
+
+    player.x += Math.cos( player.rotation ) * speed;
+    player.y += Math.sin( player.rotation ) * speed;
+
+    player.x = clamp( player.x, 50, 150 );
+    player.y = clamp( player.y, 50, 700 );
+
+    if( player.angular != 0 ){
+
+        reducePlayerAngular( Math.PI / 200 );
+        
+        player.rotation += player.angular / 200;
+
+    }
+    
+    player.rotation += Math.PI * .005 * speed * Math.sign( scroll.y );
+
+    if( scroll.y ){
+
+        reducePlayerAngular( Math.PI / 200 );
+
+    }
+
+    scroll.y = 0;
+
+    if( mouse.down ){
+
+        reducePlayerAngular( Math.PI / 200 );
+
+        speed = clamp( speed + .1, speedDefault, 10 );
+
+    } else {
+
+        //player.y += 2;
+        speed += .001;
+
+    }
+
+    Object.assign( mouse, nextMouse );
+
+}
+function gameLoop(){
+
+    if( focused && playing ){
+        
+        if( controllable ){
+            
+            updateLevel();
+            updatePlayer();
+            detectOverlaps( player );
+        
+        }
+
+    }
+
+    if( focused ) scene.render();
+    
+    window.requestAnimationFrame( gameLoop );
+
+}
+function resetPlayer(){
+
+    player.x = 100;
+    player.y = 300;
+    player.scale = 1;
+    player.rotation = 0;
+    player.visible = true;
+
+}
+function resetLevel(){
+
+    level.x = -level.width + scene.width * 1.5;
+    level.children.forEach(v => v.visible = true);
+
+    speed = speedDefault;
+
+}
+function reset(){
+
+    document.body.classList.remove( 'playing' );
+
+    resetPlayer();
+    resetLevel();
+
+    playing = false;
+    level.x = 0;
+    
+}
+function start(){
+
+    // Generate new level
+
+    scene.children = scene.children.filter(l => l !== level);
+    level = new CanvasRandomisedLevel( 10000, 600 );
+    scene.children.push( level );
+
+    // Reset all values
+
+    reset();
+
+    // Start playing and rendering
+
+    document.body.classList.add( 'playing' );
+
+    scene.render();
+
+    playing = true;
+
+}
+
+function updateUI(){
+
+    pointsCounter.textContent = points;
+    progressVisualiser.style.setProperty( '--progress', Math.abs(level.x) / (level.width - scene.width));
+
+}
+
+const mouse = { x: 0, y: 0, down: false, touch: null };
+const scroll = { x: 0, y: 0 };
+const nextMouse = { x: 0, y: 0 };
+const scene = new CanvasScene( 800, 600 );
+const player = new CanvasPlayer( 100, 300  );
+const speedDefault = 2;
+
+const pointsCounter = document.getElementById( 'points-counter' );
+const wrapper = document.getElementById( 'game' );
+const progressVisualiser = document.getElementById( 'progress-visualiser' );
+
+let level = new CanvasRandomisedLevel( 10000, 600 );
+let playing = false;
+let controllable = true;
+let focused = true;
+let speed = speedDefault;
+let points = 0;
+let thrusters = false;
+
+setInterval( updateUI, 100 );
+
+scene.children.push( player, level );
+scene.render();
+
+wrapper.appendChild( scene.canvas );
+
+scene.canvas.addEventListener( 'mouseup', e => mouse.down = false );
+scene.canvas.addEventListener( 'mousedown', e => mouse.down = true );
+scene.canvas.addEventListener( 'mouseup', e => mouse.down = false );
+scene.canvas.addEventListener( 'mouseleave', e => mouse.down = false );
+scene.canvas.addEventListener( 'mousemove', e => Object.assign( mouse, canvasMouseEventToOffset( e ) ), { once: true });
+scene.canvas.addEventListener( 'mousemove', e => Object.assign( nextMouse, canvasMouseEventToOffset( e ) ));
+scene.canvas.addEventListener( 'touchstart', e => {
+    
+    if( !mouse.touch ){
+
+        const location = canvasTouchEventToOffset( e, e.changedTouches[0] );
+        
+        mouse.touch = e.changedTouches[0].identifier;
+        mouse.down = true
+        Object.assign( mouse, location );
+        Object.assign( nextMouse, location );
+    
+    }
+
+});
+scene.canvas.addEventListener( 'touchmove', e => {
+    
+    if( mouse.touch !== null ){
+        
+        const touch = Array.from( e.changedTouches ).find( v => v.identifier === mouse.touch);
+
+        Object.assign( nextMouse, canvasTouchEventToOffset( e, touch ) );
+
+        mouse.down = false;
+    
+    }
+
+});
+scene.canvas.addEventListener( 'touchend', e => {
+    
+    if( mouse.touch === e.changedTouches[0].identifier ){
+        
+        mouse.down = null;
+    
+    }
+
+});
+
+window.addEventListener( 'blur', e => focused = false );
+window.addEventListener( 'focus', e => focused = true );
+window.addEventListener( 'wheel', e => {
+
+    scroll.x += e.wheelDeltaX;
+    scroll.y += e.wheelDeltaY;
+
+});
+
+gameLoop();
+
+console.log( scene );
+
+</script>
+
+</body>
+</html>

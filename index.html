@@ -1,0 +1,712 @@
+<html>
+<head>
+
+</head>
+<body>
+
+<main>
+
+    <header>
+
+        <h1>The Radio Buttons</h1>
+        <h2 class="hidable">are out of control!</h2>
+
+        <p class="hidable">Oh no, the radio inputs groups have escaped and are out of control! They have mingled and bonded to form images.</p>
+
+        <ol class="hidable">
+            <li><label><input type="radio" name="test" />Find the image hidden in the radio controls!</label></li>
+            <li><label><input type="radio" name="test" checked />Only one of a group can be active at any time!</label></li>
+            <li><label><input type="radio" name="test" />It's like binary sudoku! Not!</label></li>
+        </ol>
+
+        <p>
+            <button id="play">Play</button>
+            <button id="developer-button">Developer</button>
+        </p>
+
+        <p class="hidable"><small>A game by Something Here</small></p>
+    
+    </header>
+
+    <section id="grid">
+
+    </section>
+
+
+    <aside>
+        <p>Hint: <span id="puzzlehint">No Hint</span></p>
+        <p>Number of clicks: <span id="clickcounter">0</span></p>
+        <p>Time spent: <span id="durationcounter">00:00</span></p>
+        <p>Completion: <span id="completioncounter">0%</span></p>
+    </aside>
+
+    <section id="developer">
+
+        <canvas width="6" height="6" id="canvas"></canvas>
+        
+        <div class="tools">
+            <button onclick="ChangeCanvasSize( this )">Change Size (6x6)</button>
+            <button onclick="ClearDrawingCanvas()">Clear</button>
+            <button onclick="DownloadCanvas()">Download</button>
+            <button onclick="CompletePuzzle()">Complete</button>
+            <button onclick="GenerateFromCanvas()" class="special">Generate</button>
+        </div>
+
+        <label class="fileinput">
+            <input type="file" id="file" onchange="GenerateFromFile()" accept=".png,.jpg,.gif,.bmp,.svg" />
+            <span class="button">Upload a file</span>
+        </label>
+
+    </section>
+
+</main>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Vampiro+One&family=Varela+Round&display=swap');
+
+@keyframes fadein { from { opacity: 0; } }
+@keyframes complete {
+    50% { box-shadow: 0 0 20px gold; }
+    75% { background-size: 100% 100%; background-position: 50% 50%; transform: rotateZ(0deg); }
+}
+@keyframes textover {
+    from { transform: translate(200vw, -50%); opacity: .4; }
+    50% { transform: translate(-50%, -50%); opacity: 1; }
+    to { transform: translate(-200vw, -50%); opacity: .4; }
+}
+:root {
+    --grid-x: 20;
+    --grid-y: 20;
+    --grid-max: 20;
+    --header: 40px;
+    --aside: 30px;
+    --color: gray;
+    --background: #333;
+}
+h1, h2, h3, p {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: normal;
+}
+body {
+    padding: 0;
+    margin: 0;
+    background: var(--background);
+    color: white;
+    overflow: hidden;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-family: 'Varela Round', "Helvetica Neue", Arial, sans-serif;
+}
+main {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 1;
+    box-sizing: border-box;
+    padding-top: var(--header);
+    padding-bottom: var(--aside);
+    display: flex;
+}
+header {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    background: linear-gradient(-202deg,gold, orange 4% , purple);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all .4s;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 20px;
+}
+header > * {
+    margin: 4px auto;
+    max-width: 600px;
+    box-sizing: border-box;
+    padding: .5em;
+}
+header > h1,
+header > h2 {
+    padding: 0  .5em;
+    font-family: "Vampiro One", Impact, cursive;
+}
+header > h1 {
+    font-size: 40px;
+}
+header > h2 {
+    font-size: 30px;
+    color: cyan;
+    margin-bottom: 10px;
+    margin-top: -20px;
+}
+header input[type=radio]{
+    border-color: white;
+    background-image: url('data:image/svg+xml;charset=utf8,<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><circle cx=".5" cy=".5" r=".5" fill="white" /></svg>');
+    margin: 10px 10px 10px 0;
+}
+header li label {
+    display: flex;
+    align-items: center;
+}
+body.playing header > h1 {
+    font-size: 20px;
+    margin: 0 0 0 10px;
+}
+body.playing header > p {
+    margin: 0;
+}
+button, .button {
+    padding: 5px 10px;
+    border-radius: 20px;
+    border: none;
+    background: white;
+    margin: 5px;
+    text-transform: uppercase;
+    font-size: 12px;
+    transition: background-color .2s, color .4s;
+    cursor: pointer;
+}
+button:hover, .button:hover {
+    background: gold;
+}
+button.special, .button.special {
+    background-color: magenta !important;
+    color: white !important;
+}
+button:hover.special, .button:hover.special {
+    background: red;
+}
+body:not(.playing)  button#play {
+    font-size: 25px;
+    font-family: "Vampiro One", Impact, cursive;
+    padding: .5em 1em;
+    border-radius: 100px;
+}
+body.playing header {
+    height: var(--header);;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 0;
+}
+body.playing header .hidable {
+    display: none;
+}
+body header * {
+    animation: fadein 1s;
+}
+main #grid {
+    display: grid;
+    grid-template-columns: repeat( var(--grid-x), calc(80vmin / var(--grid-max)) );
+    grid-template-rows: repeat( var(--grid-y), calc(80vmin / var(--grid-max)) );
+    width: calc(80vmin / var(--grid-max) * var(--grid-x));
+    height: calc(80vmin / var(--grid-max) * var(--grid-y));
+    margin: auto;
+    position: relative;
+}
+main #grid label {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    transition: background-color .5s;
+}
+body:not(.developer) main #grid label {
+    background: transparent !important;
+}
+input[type=radio]{
+    cursor: pointer;
+    margin: auto;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    background: url('data:image/svg+xml;charset=utf8,<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><circle cx=".5" cy=".5" r=".5" fill="white" /></svg>') 0 0 / 0 0 no-repeat;
+    border: 1px solid var( --color );
+    transform: rotateZ(2000deg);
+    box-shadow: 0 0 0px gold;
+    box-sizing: content-box;
+    transition: background-position 5s, background-size 5s, border-color .2s, transform 5s, border-width .4s;
+}
+input[type=radio]:checked {
+    background-size: 100% 100%;
+    background-position: 50% 50%;
+    transform: rotateZ(0deg);
+    transition: background-position 2s, background-size 1s, border-color .2s, transform 2s, border-width .4s;
+}
+.hover input[type=radio] {
+    border-width: 4px;
+}
+body.complete input[type=radio]:checked {
+    animation: complete 2s infinite;
+    box-shadow: 0 0 4px gold;
+    background: url('data:image/svg+xml;charset=utf8,<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><circle cx=".5" cy=".5" r=".5" fill="gold" /></svg>') 25% 25% / 75% auto no-repeat;
+}
+body.complete main #grid label:nth-child(3n-2) input:checked {
+    animation-delay: -.5s;
+}
+body.complete main #grid label:nth-child(3n-1) input:checked {
+    animation-delay: -.8s;
+}
+body.complete main #grid label:nth-child(3n) input:checked {
+    animation-delay: -1.3s;
+}
+main #developer {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    width: 200px;
+    height: 100%;
+    overflow: auto;
+    z-index: 4;
+    transform: translate(-100%,-50%);
+    pointer-events: none;
+    background: rgba(0,0,0,.85);
+    color: white;
+    transition: transform .2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 10px;
+    box-sizing: border-box;
+}
+main #developer button {
+    min-width: 100%;
+}
+body.developer main #developer {
+    pointer-events: all;
+    transform: translate(0%,-50%);
+}
+main #developer canvas {
+    width: 100px;
+    height: 100px;
+    border: 1px solid black;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    margin: 20px;
+    cursor: crosshair;
+    background: white;
+}
+aside {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    height: var(--aside);
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    box-sizing: border-box;
+    background: rgba(0,0,0,.5);
+    font-size: 12px;
+}
+aside p {
+    font-size: inherit;
+}
+.fileinput {
+    width: 100%;
+    height: 40px;
+    position: relative;
+}
+.fileinput input {
+    pointer-events: none;
+    opacity: 0;
+}
+.fileinput .button {
+    background: cyan;
+    color: black !important;
+    min-width: 100%;
+    display: block;
+    box-sizing: border-box;
+    padding: 10px 20px;
+    text-align: center;
+}
+.fileinput .button:hover {
+    background: slategrey;
+}
+.text-over {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 80vw;
+    transform: translate(-50%,-50%);
+    font-size: 30px;
+    color: white;
+    font-family: "Vampiro One", Helvetica, Arial, sans-serif;
+    animation: textover 3s;
+    text-shadow: 4px 6px 20px black;
+    text-align: center;
+    z-index: 500;
+}
+.text-over em {
+    color: cyan;
+}
+.text-over.smaller {
+    font-size: 20px;
+}
+.text-over.gold {
+    color: gold;
+}
+body:not(.playing) #developer-button {
+    display: none;
+}
+</style>
+
+<script type="text/javascript">
+
+// https://stackoverflow.com/questions/105034/how-to-create-guid-uuid
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+const colors = ["aliceblue","antiquewhite","aqua","aquamarine","azure","beige","bisque","black","blanchedalmond","blue","blueviolet","brown","burlywood","cadetblue","chartreuse","chocolate","coral","cornflowerblue","cornsilk","crimson","cyan","darkblue","darkcyan","darkgoldenrod","darkgray","darkgreen","darkgrey","darkkhaki","darkmagenta","darkolivegreen","darkorange","darkorchid","darkred","darksalmon","darkseagreen","darkslateblue","darkslategray","darkslategrey","darkturquoise","darkviolet","deeppink","deepskyblue","dimgray","dimgrey","dodgerblue","firebrick","floralwhite","forestgreen","fuchsia","gainsboro","ghostwhite","gold","goldenrod","gray","green","greenyellow","grey","honeydew","hotpink","indianred","indigo","ivory","khaki","lavender","lavenderblush","lawngreen","lemonchiffon","lightblue","lightcoral","lightcyan","lightgoldenrodyellow","lightgray","lightgreen","lightgrey","lightpink","lightsalmon","lightseagreen","lightskyblue","lightslategray","lightslategrey","lightsteelblue","lightyellow","lime","limegreen","linen","magenta","maroon","mediumaquamarine","mediumblue","mediumorchid","mediumpurple","mediumseagreen","mediumslateblue","mediumspringgreen","mediumturquoise","mediumvioletred","midnightblue","mintcream","mistyrose","moccasin","navajowhite","navy","oldlace","olive","olivedrab","orange","orangered","orchid","palegoldenrod","palegreen","paleturquoise","palevioletred","papayawhip","peachpuff","peru","pink","plum","powderblue","purple","rebeccapurple","red","rosybrown","royalblue","saddlebrown","salmon","sandybrown","seagreen","seashell","sienna","silver","skyblue","slateblue","slategray","slategrey","snow","springgreen","steelblue","tan","teal","thistle","tomato","turquoise","violet","wheat","whitesmoke","yellow","yellowgreen"]
+
+const canvas = document.getElementById( 'canvas' );
+const canvasContext = canvas.getContext( '2d' );
+const file = document.getElementById( 'file' );
+const grid = document.getElementById( 'grid' );
+const clickcounter = document.getElementById( 'clickcounter' );
+const completioncounter = document.getElementById( 'completioncounter' );
+const durationcounter = document.getElementById( 'durationcounter' );
+const play = document.getElementById( 'play' );
+const puzzlehint = document.getElementById( 'puzzlehint' );
+const developerButton = document.getElementById( 'developer-button' );
+const white = new Set;
+const black = new Set;
+
+let clickcount = 0;
+let completion = 0;
+let duration = 0;
+let hoveredName = '';
+let hoveredInputs = [];
+let animatedInputInHeader;
+
+function CountTime(){
+
+    if( document.body.classList.contains( 'playing' ) ){
+        
+        duration += 1;
+        play.textContent = 'pause';
+
+        const sec = (duration % 60).toFixed(0).padStart( 2, '0' );
+        const min = ((duration - sec) / 60).toFixed(0).padStart( 2, '0' );
+
+        durationcounter.textContent = min + ':' + sec;
+    
+    } else {
+
+        play.textContent = 'play';
+
+    }
+
+}
+function OnHoverRadioButton(){
+
+    const name = event.target.name;
+
+    if( name !== hoveredName ){
+
+        hoveredName = name;
+
+        hoveredInputs.forEach(f => f.parentNode.classList.remove( 'hover' ));
+        hoveredInputs = Array.from( grid.querySelectorAll( `[name="${name}"]` ) );
+        hoveredInputs.forEach(f => f.parentNode.classList.add( 'hover' ));
+
+    }
+
+}
+function OnChangeRadioButton(){
+
+    let complete = 0;
+
+    black.forEach(b => b.checked ? complete++ : false);
+
+    if( complete === black.size ){
+
+        document.body.classList.add( 'complete' );
+
+        completioncounter.innerText = 'complete';
+
+        DisplayMessage( `Puzzle completed!` ).then(() => {
+
+            DisplayMessage( `The checkboxes have controlled art!`, 'smaller', 'gold' )
+
+        })
+
+    } else {
+
+        document.body.classList.remove( 'complete' );
+        
+        completioncounter.innerText = (complete / black.size * 100).toFixed(2) + '%';
+
+    }
+
+    clickcount++;
+    clickcounter.innerText = clickcount;
+
+}
+function GenerateRandom( width = canvas.width, height = canvas.height ){
+    
+    for( let x = 0; x < width; x++ )
+    for( let y = 0; y < height; y++ ) if( Math.random() < .5 ){
+
+        canvasContext.fillRect( x, y, 1, 1 );
+
+    }
+
+    return Generate( canvas );
+
+}
+function GenerateFromURL( url ){
+
+    const image = new Image;
+
+    image.addEventListener( 'load', event => Generate( image, url.split( '/' ).pop().split( '.' ).shift() ));
+    image.src = url;
+
+}
+function Generate( image, hint ){
+
+    const canvas = document.createElement( 'canvas' );
+    const ctx = canvas.getContext( '2d' );
+
+    canvas.width = image.width;
+    canvas.height = image.height;
+
+    ctx.drawImage( image, 0, 0 );
+
+    grid.innerHTML = '';
+    grid.style.setProperty( '--grid-x', image.width );
+    grid.style.setProperty( '--grid-y', image.height );
+    grid.style.setProperty( '--grid-max', Math.max( image.height, image.width ) );
+
+    black.clear();
+    white.clear();
+
+    const blackUnused = new Set;
+    const blackUsed = new Set;
+    const _colors = new Set( colors );
+
+    for( let x = 0; x < image.width; x++ )
+    for( let y = 0; y < image.height; y++ ){
+
+        const isBlack = ctx.getImageData( x, y, 1, 1 ).data[3] > 0;
+        const label = document.createElement( 'label' );
+        const input = document.createElement( 'input' );
+
+        input.addEventListener( 'change', OnChangeRadioButton );
+        input.addEventListener( 'mouseenter', OnHoverRadioButton );
+        input.type = 'radio';
+
+        label.style.setProperty( 'grid-column-start', x + 1  );
+        label.style.setProperty( 'grid-row-start', y + 1 );
+        label.style.backgroundColor = isBlack ? 'black' : 'white';
+        label.appendChild( input );
+        
+        if( isBlack ){
+
+            input.name = 'id-' + uuidv4();
+            black.add( input );
+            blackUnused.add( input );
+
+            const color = [ ..._colors ][ Math.floor( Math.random() * _colors.size ) ];
+
+            _colors.delete( color );
+
+            input.style.setProperty( '--color', color );
+            
+        } else {
+
+            white.add( input );
+            
+        }
+
+        grid.appendChild( label );
+
+    }
+
+    document.body.appendChild( canvas )
+
+    if( black.size > 0 ) white.forEach(input => {
+
+        const randomBlack = [ ...blackUnused ][ Math.floor(Math.random() * blackUnused.size)];
+        const color = randomBlack.style.getPropertyValue( '--color' );
+
+        blackUnused.delete( randomBlack );
+        blackUsed.add( randomBlack );
+        
+        input.name = randomBlack.name;
+        input.style.setProperty( '--color', color );
+
+        if( blackUnused.size === 0 ) blackUsed.forEach(input => {
+
+            blackUnused.add( input );
+            blackUsed.delete( input );
+
+        });
+
+    });
+
+    clickcount = clickcounter.innerText = 0;
+    duration = 0;
+    document.body.classList.add( 'playing' );
+    document.body.classList.remove( 'complete' );
+    
+    puzzlehint.textContent = hint || 'No hint!';
+
+    if( hint ){
+
+        DisplayMessage( `Find the <em>${hint}</em>!` );
+
+    }
+
+}
+function DisplayMessage( text, ...classNames ){
+
+    return new Promise(resolve => {
+
+        const dom = document.body.appendChild( document.createElement( 'span' ) );
+
+        dom.addEventListener( 'animationend', e => {
+            
+            dom.remove();
+            resolve();
+        
+        });
+        dom.classList.add( 'text-over' );
+        dom.innerHTML = text;
+
+        classNames.forEach(className => dom.classList.add( className ))
+
+    });
+
+}
+
+/* DEVELOPMENT FUNCTIONS */
+
+function GenerateFromCanvas( event ){
+
+    return Generate( canvas );
+
+}
+function GenerateFromFile( event ){
+
+    const reader = new FileReader();
+
+    reader.addEventListener( 'load', () => {
+
+        GenerateFromURL( reader.result );
+
+    });
+
+    reader.readAsDataURL( file.files[0] );
+
+}
+function ClearDrawingCanvas(){
+
+    canvasContext.clearRect( 0, 0, canvas.width, canvas.height );
+
+}
+function DownloadCanvas() {
+
+    const element = document.createElement('a');
+    const filename = prompt( 'Filename?', 'canvas' );
+    element.setAttribute('href', canvas.toDataURL( 'image/png' ) );
+    element.setAttribute( 'download', filename + '.png' );
+
+    element.style.display = 'none';
+    document.body.appendChild( element );
+
+    element.click();
+
+    document.body.removeChild( element );
+
+}
+function ChangeCanvasSize( element ){
+
+    const width = parseInt( prompt( "Enter a width." ) );
+    const height = parseInt( prompt( "Enter a height." ) );
+
+    if( !isNaN(width) ) canvas.width = width;
+    if( !isNaN(height) ) canvas.height = height;
+
+    if( element ){
+
+        element.innerText = `Change Size (${width}x${height})`;
+    }
+
+}
+function CompletePuzzle(){
+
+    black.forEach(input => {
+
+        input.checked = true;
+
+    });
+
+    OnChangeRadioButton();
+
+}
+function OnMouseEventCanvas( event ){
+
+    const x = Math.floor( event.offsetX / event.target.clientWidth * event.target.width );
+    const y = Math.floor( event.offsetY / event.target.clientHeight * event.target.height );
+    const isFilled = canvasContext.getImageData( x, y, 1, 1 ).data[3] > 0;
+
+    if( mousedown && isFilled ) canvasContext.clearRect( x, y, 1, 1 )
+    else if( mousedown ) canvasContext.fillRect( x, y, 1, 1 )
+
+}
+
+setInterval( CountTime, 1000 );
+
+play.addEventListener( 'click', event => {
+    
+    if( document.body.classList.toggle( 'playing' ) ){
+
+        if( !grid.querySelector( 'input' ) ){
+
+            GenerateFromURL( './images/turtle.png' );
+
+        }
+
+    }
+    
+});
+
+developerButton.addEventListener( 'click', event => {
+    
+    document.body.classList.toggle( 'developer' );
+    
+});
+
+let mousedown = false;
+
+canvas.addEventListener( 'mousedown', e => {
+    
+    mousedown = true
+
+    OnMouseEventCanvas(e);
+
+});
+canvas.addEventListener( 'mouseleave', e => mousedown = false);
+canvas.addEventListener( 'mouseup', e => mousedown = false);
+canvas.addEventListener( 'mousemove', OnMouseEventCanvas );
+
+</script>
+
+</body>
+</html>
