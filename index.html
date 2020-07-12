@@ -9,8 +9,12 @@
     <header>
         <h1><small>Out of Control</small><br /><span style="color:brown">Cave</span> <span style="color:limegreen">Lander</span></h1>
         <button onclick="start()">Play</button>
-        <p><code>Scroll Wheel</code> Rotate your out-of-control lander! <code>Click and Hold</code> to speed up!</p>
-        <p><small>A Game by <a href="https://somethinghere.net">Something Here</a> for GMTK GameJam 2020</small></p>
+        <p>
+            <code>Scroll Wheel</code> Rotate your lander!
+            <br /><code>Click</code> Dismiss messages
+            <br /><small>A Game by and &copy; <a href="https://somethinghere.net">Something Here</a>
+            <br />Made for GMTK Game Jam 2020</small>
+        </p>
     </header>
     <section id="game"></section>
     <aside>
@@ -114,6 +118,10 @@ canvas {
 a {
     color: inherit;
     text-decoration: none;
+    transition: color .5s;
+}
+a:hover {
+    color: var(--accent);
 }
 h1, button {
     font-family: var(--font-title);
@@ -154,6 +162,11 @@ p {
     max-width: 450px;
     text-align: center;
     line-height: 1.5em;
+}
+p small {
+    line-height: 1em;
+    padding: 1em 0;
+    display: block;
 }
 code {
     display: inline-block;
@@ -199,7 +212,6 @@ code {
     width: calc(100% - var(--padd) * 2);
     background: black;
     color: white;
-    height: 100px;
     font-size: 20px;
     border: 1px solid white;
     padding: 20px;
@@ -395,6 +407,7 @@ class CanvasSprite extends CanvasObject {
             this.context.restore();
 
         });
+        image.addEventListener( 'error', e => console.error( url, e ) );
         image.src = url;
 
         return this;
@@ -462,7 +475,7 @@ class CanvasPlayer extends CanvasScene {
         this.centerOffset.y = -height / 2;
 
         this.children.push(
-            new CanvasSprite( width, height, 0, 0, 0, 1 ).loadImageFromURL( 'images/cruddyship.svg' )
+            new CanvasSprite( width, height, 0, 0, 0, 1 ).loadImageFromURL( 'images/cruddyship-rect.svg' )
         );
 
         this.controllable = true;
@@ -484,12 +497,12 @@ class CanvasResetLevel extends CanvasSprite {
 }
 class CanvasPickup extends CanvasSprite {
 
-    constructor( color, x, y, respawnTime ){
+    constructor( image, x, y, respawnTime ){
 
-        super( 30, 30, x, y );
+        super( 60, 60, x, y );
 
         this.respawnTime = respawnTime;
-        this.loadImageFromColor( color );
+        this.loadImageFromURL( image );
 
     }
 
@@ -505,6 +518,16 @@ class CanvasPickup extends CanvasSprite {
             this.visible = false;
             this.onCollect( overlapTarget );
 
+            const pickUpCount = PICKUP_COUNTER.get( this.constructor ) + 1;
+
+            if( this.constructor.FIRST_PICKUP_PHRASE && pickUpCount === 1 ){
+
+                displayConversation( this.constructor.FIRST_PICKUP_PHRASE );
+
+            }
+
+            PICKUP_COUNTER.set( this.constructor, PICKUP_COUNTER.get( this.constructor ) + 1 );
+
             if( this.respawnTime ) setTimeout(() => {
 
                 this.visible = true;
@@ -516,40 +539,82 @@ class CanvasPickup extends CanvasSprite {
     }
 
 }
-class CanvasResetRotationPickup extends CanvasPickup {
+class CanvasResetScalePickup extends CanvasPickup {
+
+    constructor( ...args ){
+
+        super( './images/scale.png', ...args );
+
+    }
 
     onCollect( overlapTarget ){
 
-        if( this.visible ){
+        overlapTarget.scale = 1;
 
-            this.visible = false;
-
-            overlapTarget.scale = 1;
-
-            setTimeout(() => this.visible = false, 2000)
-
-        }
+        setTimeout(() => this.visible = false, 2000)
 
     }
     
 }
 class CanvasResetSpeedPickup extends CanvasPickup {
 
+    constructor( ...args ){
+
+        super( './images/time.png', ...args );
+
+    }
+
     onCollect( overlapTarget ){
 
-        if( this.vivislbe)
         speed = speedDefault;
+
+    }
+
+    static get FIRST_PICKUP_PHRASE(){
+
+        return "Oh, some coolant for the engine!";
+
+    }
+
+}
+class CanvasHealthPickup extends CanvasPickup {
+
+    constructor( ...args ){
+
+        super( './images/health.png', ...args );
+
+    }
+
+    onCollect( overlapTarget ){
+
+        health++;
+
+    }
+
+    static get FIRST_PICKUP_PHRASE(){
+
+        return "Ahh, this will patch some holes in the ship!";
 
     }
 
 }
 class CanvasPointsPickup extends CanvasPickup {
 
+    constructor( ...args ){
+
+        super( './images/points.png', ...args );
+
+    }
+
     onCollect( overlapTarget ){
 
-        this.visible = false;
-        
         points += 100;
+
+    }
+
+    static get FIRST_PICKUP_PHRASE(){
+
+        return "Don't know what these do. They might be valuable.";
 
     }
 
@@ -577,40 +642,52 @@ class CanvasRandomisedLevel extends CanvasScene {
     construct(){
 
         const objects = [];
+        const pickups = [ CanvasResetSpeedPickup, CanvasPointsPickup, CanvasHealthPickup ];
+        const background = new CanvasSprite( this.width, this.height ).loadPatternFromURL( './images/background.png', 'repeat' );
 
         // top and bottom respectively
+        this.children = [];
         this.children.push(
-            new CanvasBounceOffWall( this.width, 50 ).loadPatternFromURL( './images/walltop.png', 'repeat-x' ),
-            new CanvasLevelFloor( this.width, 50, 0, this.height -  50 ).loadPatternFromURL( './images/wallbottom.png', 'repeat-x' ),
+            background,
+            new CanvasBounceOffWall( this.width, 32 ).loadPatternFromURL( './images/top.png', 'repeat-x' ),
+            new CanvasLevelFloor( this.width, 32, 0, this.height - 32 ).loadPatternFromURL( './images/bottom.png', 'repeat-x' ),
             new CanvasEndLevelZone( scene.width, this.height, this.width - scene.width, 0 ).loadImageFromURL( './images/landingpad.png' ),
         );
+        
+        background.onUpdate = () => background.opacity = 1 - clamp(Math.abs(level.x) / level.width, 0, 1);
+        background.zIndex = -5;
 
-        for( let x = 500, i = 0; x < this.width - scene.width * 2; i++ ){
+        for( let x = scene.width * 1.5, i = 0; x < this.width - scene.width * 2; i++ ){
             
             let t = Math.random() < .5;
             let h = Math.random() * 250 + 50;
             let y = t ? this.height - h : 0;
             let w = Math.random() * 50 + 50;
+            let r = t ? './images/rock-bottom.png' : './images/rock-top.png';
 
-            x += Math.random() * 600 + 400;
-
-            switch( Math.floor(Math.random() * 2)){
+            switch( Math.floor(Math.random() * 2) ){
                 case 0:
+                    // first is always a speed boost
                     if( i !== 0 ){
                         
-                    this.children.push( new CanvasBounceOffWall( w, h, x, y ).loadImageFromColor( 'brown' ) );
+                        this.children.push( new CanvasBounceOffWall( w, h, x, y ).loadImageFromURL( r ) );
 
-                    y = (this.height - h) * .5;
-                    y = t ? y : y + h;
+                        y = (this.height - h) * .5;
+                        y = t ? y : y + h;
 
-                    this.children.push( new CanvasPointsPickup( 'green', x + w / 2, y ) );
-                    break;
-                }
+                        const thing = pickups[ Math.floor(Math.random() * pickups.length)];
+                        
+                        this.children.push( new thing( x + w / 2, y ) );
+                        break;
+
+                    }
                 case 1:
                     this.children.push( new SpeedUpStrip( x ) );
                     break;
 
             }
+
+            x += Math.random() * 600 + 400;
 
         }
     
@@ -666,6 +743,8 @@ class CanvasBounceOffWall extends CanvasSprite {
 
         if( now - this.lastHit > 200 ){
 
+            explosion.x = player.x;
+            explosion.y = player.y;
             explosion.play();
 
             if( Math.random() < .5 ){
@@ -718,8 +797,8 @@ class CanvasEndLevelZone extends CanvasSprite {
         playing = false;
 
         const since = Date.now();
-        const from = { x: player.x, y: player.y, rotation: player.rotation };
-        const to = { x: scene.width / 2, y: scene.height - player.height, rotation: -Math.PI / 2 }
+        const from = { x: player.x, y: player.y, rotation: player.rotation % RADIAN };
+        const to = { x: scene.width / 2, y: scene.height - player.width, rotation: -Math.PI / 2 }
 
         function toEnd(){
 
@@ -940,7 +1019,7 @@ function displayConversation( text, speed = 40 ){
 
     text.split( ' ' ).map(v => `<i>${v}</i>`).join(' ');
     
-    return new Promise(resolve => {
+    return conversationPromise = conversationPromise.then(() => new Promise(resolve => {
 
         const dom = mainWrapper.appendChild( document.createElement( 'div' ) );
 
@@ -975,12 +1054,12 @@ function displayConversation( text, speed = 40 ){
 
         }, { once: true });
 
-    });
+    }));
 
 }
 function displayMessage( message ){
 
-    return new Promise(resolve => {
+    return conversationPromise = conversationPromise.then(() => new Promise(resolve => {
 
         const dom = mainWrapper.appendChild( document.createElement( 'div' ) );
 
@@ -993,7 +1072,7 @@ function displayMessage( message ){
 
         });
 
-    });
+    }));
 
 }
 function deleteFromScene( scene, child ){
@@ -1068,31 +1147,35 @@ function randomExplosion(){
 
     if( playing && controllable ){
 
-        const dir = (Math.random() < .5 ? -1 : 1);
+        // Select a random part, then remove it from the possibilities until we run out.
 
-        explosion.x = player.x;
-        explosion.y = player.y + (player.height * .25 * dir);
-        explosion.zIndex = 2;
-        explosion.play();
-        explosion.scale = Math.random() * .5 + .5;
+        if( shipPartStrings.length === 0 ) shipPartStrings.push( ...SHIP_PART_STRINGS );
 
-        whentrue(() => Date.now() - explosion.startTime > explosion.duration * .5).then(() => {
+        const randomPartOfShip = shipPartStrings[ Math.floor(Math.random() * shipPartStrings.length) ];
 
-            player.rotation += dir;
-            speed = clamp( speed * .8, 1, Infinity );
+        shipPartStrings = new Set( shipPartStrings );
+        shipPartStrings.delete( randomPartOfShip );
+        shipPartStrings = Array.from( shipPartStrings );
 
-            if( SHIP_PART_STRINGS.length ){
+        displayConversation( `Oh no, our ${randomPartOfShip} has given out!` ).then(() => {
 
-                const randomPartOfShip = SHIP_PART_STRINGS[ Math.floor(Math.random() * SHIP_PART_STRINGS.length) ];
+            const dir = (Math.random() < .5 ? -1 : 1);
 
-                displayConversation( `Oh no, our ${randomPartOfShip} has given out!` ).then(() => {
+            explosion.x = player.x;
+            explosion.y = player.y + (player.height * .25 * dir);
+            explosion.zIndex = 2;
+            explosion.play();
+            explosion.scale = Math.random() * .5 + .5;
 
-                    setTimeout( randomExplosion, Math.random() * 5000 + 5000 );
+            whentrue(() => Date.now() - explosion.startTime > explosion.duration * .5).then(() => {
 
-                })
+                player.rotation += dir;
+                speed = clamp( speed * .8, 1, Infinity );
 
-            }
-            //scroll.y = 100 + Math.random() * 100 * (Math.random() < .5 ? -1 : 1);
+                setTimeout( randomExplosion, Math.random() * 5000 + 5000 );
+                //scroll.y = 100 + Math.random() * 100 * (Math.random() < .5 ? -1 : 1);
+
+            });
 
         });
 
@@ -1142,6 +1225,7 @@ function updateLevel(){
 
     level.x = clamp( level.x - direction * speed, -level.width + scene.width, 0 );
 
+    level.children[0].opacity = 1 - Math.abs(level.x) / level.width;
     // if( level.x > 0 ){
 
     //     level.x = -level.width + scene.width;
@@ -1224,7 +1308,7 @@ function updatePlayer(){
     player.x = clamp( player.x, 50, 150 );
     player.y = clamp( player.y, 50, 700 );
 
-    player.rotation = player.rotation % RADIAN;
+    //player.rotation = player.rotation % RADIAN;
 
     let scrollValue;
 
@@ -1248,7 +1332,7 @@ function updatePlayer(){
 
     controlVisualiser.style.setProperty( '--scroll', scrollValue );
 
-    player.rotation += Math.PI * .005 * speed * scrollValue;
+    player.rotation += Math.PI * .005 * scrollValue;
 
     scroll.y *= .98;
     scroll.x *= .98;
@@ -1333,6 +1417,8 @@ function reset(){
     level.x = 0;
     scroll.x = 0;
     scroll.y = 0;
+
+    PICKUP_COUNTER.forEach((v,c) => PICKUP_COUNTER.set(c,0));
     
 }
 function start(){
@@ -1374,13 +1460,26 @@ function start(){
 
 const TMP = { canvas: document.createElement( 'canvas' ) }
 const RADIAN = Math.PI * 2;
-const SHIP_PART_STRINGS = [ 'capacitor', 'shields', 'engine', 'brakes', 'fluctuator', 'weapon grid' ];
+const SHIP_PART_STRINGS = [
+    'capacitor',
+    'quantum propulsion expediator',
+    'dark matter engine',
+    'discombobulator',
+    'fluctuator',
+    'ioniser',
+    'thing that goes "Pew, Pew Pew!"'
+];
+const PICKUP_COUNTER = new Map([
+    [ CanvasHealthPickup, 0 ],
+    [ CanvasPointsPickup, 0 ],
+    [ CanvasResetSpeedPickup, 0 ]
+]);
 
 const mouse = { x: 0, y: 0, down: false, touch: null };
 const scroll = { x: 0, y: 0, min: -100, max: 100 };
 const nextMouse = { x: 0, y: 0 };
 const scene = new CanvasScene( 800, 600 );
-const player = new CanvasPlayer( 100, 100, 0, 0, 0, .25  );
+const player = new CanvasPlayer( 100, 50, 0, 0, 0, .25  );
 const speedDefault = 2;
 const healthDefault = 3;
 const explosion = new Explosion;
@@ -1403,6 +1502,8 @@ let thrusters = false;
 let health = 3;
 let delta = 0;
 let time = 0;
+let shipPartStrings = SHIP_PART_STRINGS.slice();
+let conversationPromise = Promise.resolve();
 
 scene.children.push( explosion );
 
@@ -1460,6 +1561,8 @@ window.addEventListener( 'blur', e => focused = false );
 window.addEventListener( 'focus', e => focused = true );
 window.addEventListener( 'wheel', e => {
 
+    e.preventDefault();
+    
     scroll.x = clamp( scroll.x + e.wheelDeltaX, scroll.min, scroll.max );
     scroll.y = clamp( scroll.y + e.wheelDeltaY, scroll.min, scroll.max );
 
