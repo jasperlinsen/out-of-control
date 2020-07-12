@@ -16,6 +16,34 @@
             <br />Made for GMTK Game Jam 2020</small>
         </p>
     </header>
+    <header id="results" class="hidden">
+        <h2>Game Over</h2>
+        <ul>
+            <li id="results-health">
+                <span class="title">Health Bonus</span>
+                <span class="amount">4</span>
+                <span class="value">50</span>
+                <span class="total">200</span>
+            </li>
+            <li id="results-points">
+                <span class="title">Points Bonus</span>
+                <span class="amount">2</span>
+                <span class="value">100</span>
+                <span class="total">200</span>
+            </li>
+            <li id="results-speed">
+                <span class="title">Speed Bonus</span>
+                <span class="amount">4</span>
+                <span class="value">100</span>
+                <span class="total">400</span>
+            </li>
+            <li id="results-total">
+                <span class="title">Total</span>
+                <span class="total">800</span>
+            </li>
+        </ul>
+        <button onclick="hideResults()">Done</button>
+    </header>
     <section id="game"></section>
     <aside>
         <span id="points-counter">0</span>
@@ -26,7 +54,7 @@
 </main>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Vampiro+One&family=Major+Mono+Display&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Vampiro+One&family=Roboto:wght@300&display=swap');
 
 @keyframes fadein {
     from { opacity: 0; }
@@ -57,7 +85,7 @@
 }
 
 :root {
-    --font-body: 'Major Mono Display', "Helvetica Neue", Arial, sans-serif;
+    --font-body: 'Roboto', "Helvetica Neue", Arial, sans-serif;
     --font-title: 'Vampiro One', 'Impact', cursive;
     --accent: gold;
     --skew: skewY(-3deg) scaleX(.85);
@@ -71,6 +99,11 @@ body {
     overflow: hidden;
     background: black;
     font-family: var(--font-body);
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 main {
     max-width: 100%;
@@ -123,13 +156,17 @@ a {
 a:hover {
     color: var(--accent);
 }
-h1, button {
+h1, h2, button {
     font-family: var(--font-title);
     font-size: 10vmin;
     transform: var(--skew);
     text-shadow: -2px 2px 0 var(--accent);
     text-align: center;
     line-height: .8em;
+}
+h2 {
+    font-size: 40px;
+    margin-bottom: 30px;
 }
 small {
     font-size: .75em;
@@ -152,6 +189,10 @@ button {
     cursor: pointer;
     transition: all 1s;
     animation: playbutton 3s infinite;
+    outline: none;
+}
+button:focus {
+    outline: none;
 }
 button:hover {
     font-size: 3.5em;
@@ -161,10 +202,10 @@ button:hover {
 p {
     max-width: 450px;
     text-align: center;
-    line-height: 1.5em;
+    line-height: 2em;
 }
 p small {
-    line-height: 1em;
+    line-height: 1.5em;
     padding: 1em 0;
     display: block;
 }
@@ -174,8 +215,16 @@ code {
     padding: 3px 6px;
     border: 1px solid rgba(255,255,255,.2);
     line-height: 1em;
+    margin-right: 1em;
 }
 
+.hidden {
+    opacity: 0 !important;
+    pointer-events: none;
+}
+.removed {
+    display: none !important;
+}
 .message {
     --duration: 2s;
     position: absolute;
@@ -216,6 +265,8 @@ code {
     border: 1px solid white;
     padding: 20px;
     box-sizing: border-box;
+    letter-spacing: .08em;
+    font-weight: 100;
 }
 .conversation i {
     animation: fadein .4s;
@@ -247,11 +298,11 @@ code {
     position: absolute;
     left: 50%;
     top: 50%;
-    transform: translate(-50%,-50%) rotateZ(calc(var(--scroll) * 180deg));
-    border: 10px solid red;
-    border-left-color: yellow;
-    border-bottom-color: green;
-    border-right-color: blue;
+    transform: translate(-50%,-50%) rotateZ(calc(var(--scroll,0) * 30deg));
+    border: 20px solid #333;
+    border-left-color: #222;
+    border-bottom-color: #111;
+    border-right-color: #222;
     z-index: -1;
     border-radius: 50%;
 }
@@ -266,6 +317,57 @@ code {
     margin-left: .25em;
     display: block;
     background: orange;
+}
+#results {
+    background: black;
+}
+#results ul,
+#results li {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    padding: 10px;
+}
+#results li {
+    display: flex;
+    align-items: center;
+}
+#results li span {
+    padding: 10px;
+}
+#results li span:before {
+    opacity: .5;
+}
+#results li .title {
+    width: 100px;
+}
+#results li .value {
+    color: var(--accent);
+}
+#results li .total {
+    margin-left: auto;
+}
+#results li .total:before {
+    content: '=';
+}
+#results li .amount:before,
+#results li .value:before {
+    content: 'x';
+    opacity: .5;
+}
+#results-total {
+    color: var(--accent);
+}
+#results-total .total {
+    font-family: var(--font-title);
+    font-size: 3em;
+}
+#results #results-total .total:before {
+    content: none;
+}
+#results button {
+    animation: none;
+    margin: 0;
 }
 </style>
 
@@ -650,7 +752,7 @@ class CanvasRandomisedLevel extends CanvasScene {
         this.children.push(
             background,
             new CanvasBounceOffWall( this.width, 32 ).loadPatternFromURL( './images/top.png', 'repeat-x' ),
-            new CanvasLevelFloor( this.width, 32, 0, this.height - 32 ).loadPatternFromURL( './images/bottom.png', 'repeat-x' ),
+            new CanvasBounceOffWall( this.width, 32, 0, this.height - 32 ).loadPatternFromURL( './images/bottom.png', 'repeat-x' ),
             new CanvasEndLevelZone( scene.width, this.height, this.width - scene.width, 0 ).loadImageFromURL( './images/landingpad.png' ),
         );
         
@@ -710,38 +812,32 @@ class CanvasBounceOffWall extends CanvasSprite {
 
         if( now - this.lastHit > 1000 && --health === 0 ){
 
-            if( health === 0 ){
+            this.lastHit = Date.now() + 1000;
+            
+            const explosion = new Explosion( 200, 200 );
 
-                this.lastHit = Date.now() + 1000;
-                
-                const explosion = new Explosion( 200, 200 );
+            controllable = false;
+            explosion.x = player.x;
+            explosion.y = player.y;
+            player.visible = false;
+            scene.children.push( explosion );
+            explosion.play();
 
-                controllable = false;
-                explosion.x = player.x;
-                explosion.y = player.y;
-                player.visible = false;
-                scene.children.push( explosion );
-                explosion.play();
+            displayConversation( "We're not going to make it!" ).then(() => {
 
-                displayConversation( "We're not going to make it!" ).then(() => {
+                displayMessage( "Game Over" ).then( reset );
 
-                    displayMessage( "Game Over" ).then( reset );
+                whentrue(() => explosion.visible === false).then(() => {
 
-                    whentrue(() => explosion.visible === false).then(() => {
-
-                        deleteFromScene( scene, explosion );
-
-                    });
+                    deleteFromScene( scene, explosion );
 
                 });
 
-                return;
+            });
 
-            }
+            return;
 
-        }
-
-        if( now - this.lastHit > 200 ){
+        } else if( now - this.lastHit > 200 ){
 
             explosion.x = player.x;
             explosion.y = player.y;
@@ -755,13 +851,13 @@ class CanvasBounceOffWall extends CanvasSprite {
 
             if( overlapTarget.y > this.y ){
 
-                overlapTarget.rotation += Math.PI / 4;
-                overlapTarget.angular = Math.PI;
+                overlapTarget.rotation += Math.PI / 6;
+                overlapTarget.angular = Math.PI / 3;
 
             } else {
 
-                overlapTarget.rotation -= Math.PI / 4;
-                overlapTarget.angular = -Math.PI * 4;
+                overlapTarget.rotation -= Math.PI / 6;
+                overlapTarget.angular = Math.PI / 3;
 
             }
             
@@ -844,8 +940,9 @@ class CanvasEndLevelZone extends CanvasSprite {
 
         Promise.all([ text, end ]).then(() => {
 
-            displayMessage( `Your score: <span style="color:var(--accent);">${points}</span>` ).then(() => {
+            displayMessage( `Landing complete!` ).then(() => {
 
+                showResults();
                 document.body.classList.remove( 'playing' );
                 setTimeout( reset, 1000 );
 
@@ -978,6 +1075,14 @@ class SpeedUpStrip extends CanvasSprite {
             }
 
             speed = clamp( speed + this.lastTrigger, 1, Infinity );
+
+            if( PICKUP_COUNTER.get( this.constructor ) === 0 ){
+
+                PICKUP_COUNTER.set( this.constructor, 1 );
+
+                displayConversation( "A speed up light beam! Hold on!" );
+
+            }
 
         }
 
@@ -1408,6 +1513,11 @@ function resetLevel(){
 }
 function reset(){
 
+    // Restart the promise chain
+    // This will allow js to garbage collect stuff
+    // that has been accumulating
+    conversationPromise = Promise.resolve();
+
     document.body.classList.remove( 'playing' );
 
     resetPlayer();
@@ -1417,6 +1527,8 @@ function reset(){
     level.x = 0;
     scroll.x = 0;
     scroll.y = 0;
+
+    scene.render();
 
     PICKUP_COUNTER.forEach((v,c) => PICKUP_COUNTER.set(c,0));
     
@@ -1457,6 +1569,45 @@ function start(){
     });
 
 }
+function hideResults(){
+
+    resultsVisualiser.classList.add( 'hidden' );
+
+}
+function showResults(){
+
+    function apply( dom, amount = 0, value = 0 ){
+
+        const amountDom = dom.querySelector( '.amount' );
+        const valueDom = dom.querySelector( '.value' );
+        const totalDom = dom.querySelector( '.total' );
+
+        if( amountDom ) amountDom.innerText = amount.toFixed(2);
+        if( valueDom ) valueDom.innerText = value.toFixed(2);
+        if( totalDom ) totalDom.innerText = (amount * value).toFixed(2);
+        
+        if( amount === 0 ) dom.classList.add( 'removed' );
+        else dom.classList.remove( 'removed' );
+
+        return amount * value;
+
+    }
+
+    const [ healthDom, pointsDom, speedDom, totalDom ] = [ 'health', 'points', 'speed', 'total' ].map(v => {
+
+        return document.getElementById( 'results-' + v );
+
+    });
+
+    const total = apply( healthDom, health, 50 ) 
+                + apply( pointsDom, points, 100 ) 
+                + apply( speedDom,  speed,  200 );
+
+    apply( totalDom, 1, total );
+
+    resultsVisualiser.classList.remove( 'hidden' );
+
+}
 
 const TMP = { canvas: document.createElement( 'canvas' ) }
 const RADIAN = Math.PI * 2;
@@ -1472,12 +1623,14 @@ const SHIP_PART_STRINGS = [
 const PICKUP_COUNTER = new Map([
     [ CanvasHealthPickup, 0 ],
     [ CanvasPointsPickup, 0 ],
-    [ CanvasResetSpeedPickup, 0 ]
+    [ CanvasResetSpeedPickup, 0 ],
+    [ SpeedUpStrip, 0 ]
 ]);
 
-const mouse = { x: 0, y: 0, down: false, touch: null };
+const mouse = { x: 0, y: 0, down: false };
 const scroll = { x: 0, y: 0, min: -100, max: 100 };
 const nextMouse = { x: 0, y: 0 };
+const touch = { x: 0, y: 0, id: -1 };
 const scene = new CanvasScene( 800, 600 );
 const player = new CanvasPlayer( 100, 50, 0, 0, 0, .25  );
 const speedDefault = 2;
@@ -1491,6 +1644,15 @@ const wrapper = document.getElementById( 'game' );
 const progressVisualiser = document.getElementById( 'progress-visualiser' );
 const healthVisualiser = document.getElementById( 'health-visualiser' );
 const controlVisualiser = document.getElementById( 'control-visualiser' );
+const resultsVisualiser = document.getElementById( 'results' );
+const passwords = {
+    end(){ level.x = -level.width + scene.width * 1.5; },
+    life(){ health = 5; },
+    stop(){ speed = 0; },
+    start(){ speed = 1; },
+    speed(){ speed += 1; },
+    slow(){ speed = clamp( speed - 1, .01, 100 ); }
+}
 
 let level = new CanvasRandomisedLevel( 10000, 600 );
 let playing = false;
@@ -1504,6 +1666,7 @@ let delta = 0;
 let time = 0;
 let shipPartStrings = SHIP_PART_STRINGS.slice();
 let conversationPromise = Promise.resolve();
+let password = '';
 
 scene.children.push( explosion );
 
@@ -1522,41 +1685,68 @@ scene.canvas.addEventListener( 'mousemove', e => Object.assign( mouse, canvasMou
 scene.canvas.addEventListener( 'mousemove', e => Object.assign( nextMouse, canvasMouseEventToOffset( e ) ));
 scene.canvas.addEventListener( 'touchstart', e => {
     
-    if( !mouse.touch ){
+    if( touch.id < 0 ){
 
-        const location = canvasTouchEventToOffset( e, e.changedTouches[0] );
+        const newTouch = canvasTouchEventToOffset( e, e.changedTouches[0] );
         
-        mouse.touch = e.changedTouches[0].identifier;
-        mouse.down = true
-        Object.assign( mouse, location );
-        Object.assign( nextMouse, location );
+        touch.id = e.changedTouches[0].identifier;
+        Object.assign( touch, newTouch );
     
     }
 
 });
 scene.canvas.addEventListener( 'touchmove', e => {
     
-    if( mouse.touch !== null ){
+    if( touch.id >= 0 ){
         
-        const touch = Array.from( e.changedTouches ).find( v => v.identifier === mouse.touch);
+        const changedTouch = Array.from( e.changedTouches ).find( v => v.identifier === touch.id);
+        const newTouch = canvasTouchEventToOffset( e, changedTouch );
+        
+        scroll.x += newTouch.x - touch.x;
+        scroll.y += newTouch.y - touch.y;
 
-        Object.assign( nextMouse, canvasTouchEventToOffset( e, touch ) );
+        console.log( scroll.y, changedTouch, touch, newTouch );
 
-        mouse.down = false;
-    
+        Object.assign( touch, newTouch );
+
     }
 
 });
 scene.canvas.addEventListener( 'touchend', e => {
     
-    if( mouse.touch === e.changedTouches[0].identifier ){
+    if( touch.id === e.changedTouches[0].identifier ){
         
-        mouse.down = null;
+        touch.id = -1;
     
     }
 
 });
 
+window.addEventListener( 'keydown', e => {
+
+    password += e.key;
+    password = password.toLowerCase();
+
+    const possibleMatches = Object.keys( passwords ).filter(p => p.startsWith( password ));
+
+    if( possibleMatches.length ){
+
+        const result = possibleMatches.find(v => v === password);
+
+        if( result ){
+
+            passwords[result]();
+            password = '';
+
+        }
+
+    } else {
+
+        password = '';
+
+    }
+
+})
 window.addEventListener( 'blur', e => focused = false );
 window.addEventListener( 'focus', e => focused = true );
 window.addEventListener( 'wheel', e => {
@@ -1566,7 +1756,7 @@ window.addEventListener( 'wheel', e => {
     scroll.x = clamp( scroll.x + e.wheelDeltaX, scroll.min, scroll.max );
     scroll.y = clamp( scroll.y + e.wheelDeltaY, scroll.min, scroll.max );
 
-});
+}, { passive: false });
 
 gameLoop();
 randomExplosion();
